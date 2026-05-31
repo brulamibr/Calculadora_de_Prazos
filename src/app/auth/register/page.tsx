@@ -27,7 +27,16 @@ export default function RegisterPage() {
       options: { data: { nome } },
     })
     if (error) {
-      toast.error(error.message)
+      const msg = error.message.toLowerCase()
+      if (msg.includes('rate limit') || msg.includes('email rate')) {
+        toast.error('Muitas tentativas de cadastro. Aguarde alguns minutos e tente novamente.')
+      } else if (msg.includes('already registered') || msg.includes('user already')) {
+        toast.error('Este e-mail já está cadastrado. Tente fazer login.')
+      } else if (msg.includes('password') && msg.includes('short')) {
+        toast.error('A senha deve ter no mínimo 6 caracteres.')
+      } else {
+        toast.error('Erro ao criar conta. Tente novamente.')
+      }
     } else {
       setCadastrado(true)
     }
