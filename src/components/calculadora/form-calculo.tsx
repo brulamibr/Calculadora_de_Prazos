@@ -5,7 +5,7 @@ import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import { CalendarIcon, Calculator, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { calcularPrazo, calcularPrazoCorridos } from '@/lib/calculadora'
+import { calcularPrazo, calcularPrazoCorridos, gerarRecessoForense } from '@/lib/calculadora'
 import type { Estado, Feriado } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -113,6 +113,7 @@ export function FormCalculo() {
         const anoFimEstimado = new Date(dataInicio.getTime() + dias * 2 * 86400000).getFullYear()
         const anos = Array.from(new Set([anoInicio, anoFimEstimado]))
         const feriadosNacionais = await buscarFeriadosNacionais(anos)
+        const diasRecessoForense = gerarRecessoForense(anos)
 
         const dataFimEstimada = new Date(dataInicio)
         dataFimEstimada.setDate(dataFimEstimada.getDate() + dias * 2 + 30)
@@ -153,6 +154,7 @@ export function FormCalculo() {
 
         res = calcularPrazo(dataInicio, dias, [
           ...feriadosNacionais,
+          ...diasRecessoForense,
           ...feriadosEstaduais,
           ...feriadosMunicipais,
         ])
@@ -406,10 +408,12 @@ export function FormCalculo() {
                 <div>
                   <p className="text-sm font-medium text-blue-800 mb-2 flex items-center gap-1">
                     <AlertCircle className="h-4 w-4" />
-                    Feriados desconsiderados
+                    Feriados e recesso desconsiderados
                   </p>
                   <div className="space-y-1.5">
-                    {resultado.feriadosEncontrados.map((f) => (
+                    {resultado.feriadosEncontrados.map((f) => {
+                      const ehRecesso = f.id.startsWith('recesso-')
+                      return (
                       <div
                         key={f.id}
                         className="flex items-center justify-between bg-card rounded-lg px-3 py-2 text-sm shadow-sm"
@@ -419,12 +423,19 @@ export function FormCalculo() {
                           <span className="text-muted-foreground">
                             {format(new Date(f.data + 'T00:00:00'), 'dd/MM', { locale: ptBR })}
                           </span>
-                          <Badge variant="secondary" className="text-xs capitalize">
-                            {f.tipo}
+                          <Badge
+                            variant="secondary"
+                            className={cn(
+                              'text-xs capitalize',
+                              ehRecesso ? 'bg-amber-100 text-amber-700' : ''
+                            )}
+                          >
+                            {ehRecesso ? 'recesso' : f.tipo}
                           </Badge>
                         </div>
                       </div>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               </>
