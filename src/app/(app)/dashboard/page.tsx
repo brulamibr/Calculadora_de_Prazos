@@ -135,8 +135,8 @@ export default async function DashboardPage() {
                         {c.titulo || `Prazo de ${c.dias_uteis} dias úteis`}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {c.municipio?.nome ? `${c.municipio.nome} / ` : ''}{c.estado?.nome || 'Nacional'}
-                        {' · '}Início: {format(new Date(c.data_inicio + 'T00:00:00'), 'dd/MM/yyyy')}
+                        {c.cliente ? `${c.cliente} · ` : ''}{c.tribunal ? `${c.tribunal} · ` : ''}{c.municipio?.nome ? `${c.municipio.nome} / ` : ''}{c.estado?.nome || ''}
+                        {c.cliente || c.tribunal || c.municipio?.nome || c.estado?.nome ? ' · ' : ''}Início: {format(new Date(c.data_inicio + 'T00:00:00'), 'dd/MM/yyyy')}
                       </p>
                     </div>
                     <div className="ml-4 text-right shrink-0">

@@ -26,6 +26,11 @@ export interface Calculo {
   titulo: string | null
   estado_sigla: string | null
   municipio_id: number | null
+  tribunal: string | null
+  sistema: string | null
+  cliente: string | null
+  numero_processo: string | null
+  providencia: string | null
   data_inicio: string
   dias_uteis: number
   data_fim: string

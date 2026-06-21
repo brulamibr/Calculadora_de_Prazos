@@ -6,7 +6,9 @@ import { ptBR } from 'date-fns/locale'
 import { CalendarIcon, Calculator, AlertCircle } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { calcularPrazo, calcularPrazoCorridos, gerarRecessoForense } from '@/lib/calculadora'
+import { TRIBUNAIS, GRUPOS_TRIBUNAL, SISTEMAS } from '@/lib/tribunais'
 import type { Estado, Feriado } from '@/lib/types'
+import type { Tribunal } from '@/lib/tribunais'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -54,6 +56,12 @@ async function buscarFeriadosNacionais(anos: number[]): Promise<Feriado[]> {
   return resultados.flat()
 }
 
+const tribunaisPorGrupo = (Object.keys(GRUPOS_TRIBUNAL) as Tribunal['grupo'][]).map((grupo) => ({
+  grupo,
+  label: GRUPOS_TRIBUNAL[grupo],
+  tribunais: TRIBUNAIS.filter((t) => t.grupo === grupo),
+}))
+
 export function FormCalculo() {
   const [estados, setEstados] = useState<Estado[]>([])
   const [municipios, setMunicipios] = useState<MunicipioIBGE[]>([])
@@ -63,7 +71,12 @@ export function FormCalculo() {
   const [dataInicio, setDataInicio] = useState<Date>()
   const [numeroDias, setNumeroDias] = useState<string>('15')
   const [tipoPrazo, setTipoPrazo] = useState<TipoPrazo>('uteis')
-  const [titulo, setTitulo] = useState<string>('')
+  const [tribunal, setTribunal] = useState<string>('')
+  const [sistema, setSistema] = useState<string>('')
+  const [sistemaOutro, setSistemaOutro] = useState<string>('')
+  const [cliente, setCliente] = useState<string>('')
+  const [numeroProcesso, setNumeroProcesso] = useState<string>('')
+  const [providencia, setProvidencia] = useState<string>('')
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [resultado, setResultado] = useState<{
@@ -94,6 +107,8 @@ export function FormCalculo() {
       .finally(() => setLoadingMunicipios(false))
   }, [estadoSigla])
 
+  const sistemaFinal = sistema === 'Outro' ? sistemaOutro : sistema
+
   async function handleCalcular(e: { preventDefault(): void }) {
     e.preventDefault()
     if (!dataInicio) { toast.error('Selecione a data de início'); return }
@@ -108,7 +123,6 @@ export function FormCalculo() {
       if (tipoPrazo === 'corridos') {
         res = calcularPrazoCorridos(dataInicio, dias)
       } else {
-        // Busca feriados via BrasilAPI + Supabase
         const anoInicio = dataInicio.getFullYear()
         const anoFimEstimado = new Date(dataInicio.getTime() + dias * 2 * 86400000).getFullYear()
         const anos = Array.from(new Set([anoInicio, anoFimEstimado]))
@@ -166,7 +180,11 @@ export function FormCalculo() {
       if (user) {
         await supabase.from('calculos').insert({
           user_id: user.id,
-          titulo: titulo || null,
+          tribunal: tribunal || null,
+          sistema: sistemaFinal || null,
+          cliente: cliente || null,
+          numero_processo: numeroProcesso || null,
+          providencia: providencia || null,
           estado_sigla: estadoSigla || null,
           municipio_id: null,
           data_inicio: format(dataInicio, 'yyyy-MM-dd'),
@@ -233,13 +251,81 @@ export function FormCalculo() {
               </div>
             </div>
 
+            {/* Tribunal */}
             <div className="space-y-2">
-              <Label htmlFor="titulo">Identificação (opcional)</Label>
+              <Label>Tribunal</Label>
+              <Select value={tribunal} onValueChange={(v) => { if (v) setTribunal(v) }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o tribunal" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tribunaisPorGrupo.map((g) => (
+                    <SelectGroup key={g.grupo}>
+                      <SelectLabel>{g.label}</SelectLabel>
+                      {g.tribunais.map((t) => (
+                        <SelectItem key={t.sigla} value={t.sigla}>
+                          {t.sigla} — {t.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Sistema */}
+            <div className="space-y-2">
+              <Label>Sistema</Label>
+              <Select value={sistema} onValueChange={(v) => { if (v) setSistema(v) }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecione o sistema" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SISTEMAS.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {sistema === 'Outro' && (
+                <Input
+                  placeholder="Informe o nome do sistema"
+                  value={sistemaOutro}
+                  onChange={(e) => setSistemaOutro(e.target.value)}
+                  className="mt-2"
+                />
+              )}
+            </div>
+
+            {/* Cliente e Número do Processo */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="cliente">Cliente</Label>
+                <Input
+                  id="cliente"
+                  placeholder="Nome do cliente"
+                  value={cliente}
+                  onChange={(e) => setCliente(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="numero-processo">Número do Processo</Label>
+                <Input
+                  id="numero-processo"
+                  placeholder="0000000-00.0000.0.00.0000"
+                  value={numeroProcesso}
+                  onChange={(e) => setNumeroProcesso(e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Providência */}
+            <div className="space-y-2">
+              <Label htmlFor="providencia">Providência</Label>
               <Input
-                id="titulo"
-                placeholder="Ex: Contestação Proc. 1234/2025"
-                value={titulo}
-                onChange={(e) => setTitulo(e.target.value)}
+                id="providencia"
+                placeholder="Ex: Apresentar contestação"
+                value={providencia}
+                onChange={(e) => setProvidencia(e.target.value)}
               />
             </div>
 
@@ -350,11 +436,14 @@ export function FormCalculo() {
             <CardTitle className="text-blue-800">Resultado</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {(titulo || estadoSigla) && (
-              <div className="text-sm text-blue-700 font-medium">
-                {titulo && <p>{titulo}</p>}
+            {(estadoSigla || tribunal || cliente || numeroProcesso || providencia) && (
+              <div className="text-sm text-blue-700 space-y-0.5">
+                {cliente && <p className="font-medium">Cliente: {cliente}</p>}
+                {numeroProcesso && <p className="text-blue-600">Processo: {numeroProcesso}</p>}
+                {tribunal && <p className="text-blue-600">Tribunal: {tribunal}{sistemaFinal ? ` · ${sistemaFinal}` : ''}</p>}
+                {providencia && <p className="text-blue-600">Providência: {providencia}</p>}
                 {resultado.tipoPrazo === 'uteis' && estadoSigla && (
-                  <p className="text-blue-600 font-normal">
+                  <p className="text-blue-600">
                     {municipioNome ? `${municipioNome} / ` : ''}{estadoSigla}
                   </p>
                 )}

@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { format } from 'date-fns'
+import { addDays, differenceInCalendarDays, format, isWeekend, nextMonday } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 import { Download } from 'lucide-react'
 import {
   DropdownMenu,
@@ -15,20 +16,57 @@ interface Props {
   calculos: Calculo[]
 }
 
+function proximoDiaUtil(data: Date): Date {
+  const proximo = addDays(data, 1)
+  if (isWeekend(proximo)) return nextMonday(proximo)
+  return proximo
+}
+
 export function BotaoExportar({ calculos }: Props) {
   const [loading, setLoading] = useState(false)
+
+  function montarLinhas() {
+    return calculos.map((c) => {
+      const dataPublicacao = new Date(c.data_inicio + 'T00:00:00')
+      const dataInicio = proximoDiaUtil(dataPublicacao)
+      const dataFim = new Date(c.data_fim + 'T00:00:00')
+      const foro = c.estado_sigla || ''
+      const hoje = new Date()
+      hoje.setHours(0, 0, 0, 0)
+      const diasRestantes = differenceInCalendarDays(dataFim, hoje)
+      return {
+        tribunal: c.tribunal || '',
+        sistema: c.sistema || '',
+        dataPublicacao: format(dataPublicacao, 'dd/MM/yyyy'),
+        inicio: format(dataInicio, 'dd/MM/yyyy'),
+        diasPrazo: c.dias_uteis,
+        fim: format(dataFim, 'dd/MM/yyyy'),
+        diaSemana: format(dataFim, 'EEE', { locale: ptBR }),
+        cliente: c.cliente || '',
+        processo: c.numero_processo || '',
+        foro,
+        providencia: c.providencia || '',
+        diasRestantes: diasRestantes < 0 ? 'Vencido' : diasRestantes === 0 ? 'Hoje' : `${diasRestantes}`,
+      }
+    })
+  }
 
   async function exportarExcel() {
     setLoading(true)
     const XLSX = await import('xlsx')
-    const rows = calculos.map((c) => ({
-      'Identificação': c.titulo || '',
-      'Estado': c.estado_sigla || '',
-      'Início': format(new Date(c.data_inicio + 'T00:00:00'), 'dd/MM/yyyy'),
-      'Dias Úteis': c.dias_uteis,
-      'Prazo Final': format(new Date(c.data_fim + 'T00:00:00'), 'dd/MM/yyyy'),
-      'Feriados': Array.isArray(c.feriados_encontrados) ? c.feriados_encontrados.length : 0,
-      'Calculado em': format(new Date(c.created_at), 'dd/MM/yyyy HH:mm'),
+    const rows = montarLinhas().map((r) => ({
+      'Tribunal': r.tribunal,
+      'Sistema': r.sistema,
+      'Data da Publicação': r.dataPublicacao,
+      'Início': r.inicio,
+      'Dias do Prazo': r.diasPrazo,
+      'Fim': r.fim,
+      'Dia da Semana': r.diaSemana,
+      'Cliente': r.cliente,
+      'Processo': r.processo,
+      'Foro': r.foro,
+      'Providência': r.providencia,
+      'Dias Restantes': r.diasRestantes,
     }))
     const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
@@ -42,29 +80,33 @@ export function BotaoExportar({ calculos }: Props) {
     const { default: jsPDF } = await import('jspdf')
     const { default: autoTable } = await import('jspdf-autotable')
 
-    const doc = new jsPDF()
+    const doc = new jsPDF({ orientation: 'landscape' })
     doc.setFontSize(16)
     doc.text('Relatório de Prazos Jurídicos', 14, 20)
     doc.setFontSize(10)
     doc.text(`Gerado em: ${format(new Date(), 'dd/MM/yyyy HH:mm')}`, 14, 28)
 
+    const linhas = montarLinhas()
+
     autoTable(doc, {
       startY: 35,
-      head: [['Identificação', 'Estado', 'Início', 'Dias úteis', 'Prazo Final', 'Status']],
-      body: calculos.map((c) => {
-        const dataFim = new Date(c.data_fim + 'T00:00:00')
-        const status = dataFim < new Date() ? 'Vencido' : 'Ativo'
-        return [
-          c.titulo || `Prazo ${c.dias_uteis}du`,
-          c.estado_sigla || '—',
-          format(new Date(c.data_inicio + 'T00:00:00'), 'dd/MM/yyyy'),
-          String(c.dias_uteis),
-          format(dataFim, 'dd/MM/yyyy'),
-          status,
-        ]
-      }),
-      styles: { fontSize: 9 },
-      headStyles: { fillColor: [37, 99, 235] },
+      head: [['Tribunal', 'Sistema', 'Data Publicação', 'Início', 'Dias', 'Fim', 'Dia Sem.', 'Cliente', 'Processo', 'Foro', 'Providência', 'Dias Restantes']],
+      body: linhas.map((r) => [
+        r.tribunal,
+        r.sistema,
+        r.dataPublicacao,
+        r.inicio,
+        String(r.diasPrazo),
+        r.fim,
+        r.diaSemana,
+        r.cliente,
+        r.processo,
+        r.foro,
+        r.providencia,
+        r.diasRestantes,
+      ]),
+      styles: { fontSize: 7 },
+      headStyles: { fillColor: [30, 64, 175] },
     })
 
     doc.save(`prazos_${format(new Date(), 'yyyyMMdd')}.pdf`)
