@@ -5,6 +5,7 @@ import { ptBR } from 'date-fns/locale'
 import { History } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { BotaoExportar } from '@/components/historico/botao-exportar'
+import { BotaoExcluir } from '@/components/historico/botao-excluir'
 import type { Calculo } from '@/lib/types'
 
 function proximoDiaUtil(data: Date): Date {
@@ -60,6 +61,7 @@ export default async function HistoricoPage() {
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="bg-blue-700 text-white">
+                    <th className="py-3 px-3 font-semibold text-center text-xs uppercase tracking-wide">Dias Restantes</th>
                     <th className="py-3 px-3 font-semibold text-left text-xs uppercase tracking-wide">Tribunal</th>
                     <th className="py-3 px-3 font-semibold text-left text-xs uppercase tracking-wide">Sistema</th>
                     <th className="py-3 px-3 font-semibold text-left text-xs uppercase tracking-wide">Data da Publicação</th>
@@ -71,7 +73,7 @@ export default async function HistoricoPage() {
                     <th className="py-3 px-3 font-semibold text-left text-xs uppercase tracking-wide">Processo</th>
                     <th className="py-3 px-3 font-semibold text-left text-xs uppercase tracking-wide">Foro</th>
                     <th className="py-3 px-3 font-semibold text-left text-xs uppercase tracking-wide">Providência</th>
-                    <th className="py-3 px-3 font-semibold text-center text-xs uppercase tracking-wide">Dias Restantes</th>
+                    <th className="py-3 px-3 font-semibold text-center text-xs uppercase tracking-wide">Ações</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -84,12 +86,15 @@ export default async function HistoricoPage() {
                     const diasRestantes = differenceInCalendarDays(dataFim, hoje)
                     const foro = c.municipio?.nome
                       ? `${c.municipio.nome}${c.estado?.sigla ? `/${c.estado.sigla}` : ''}`
-                      : c.estado?.nome || '—'
+                      : '—'
                     return (
                       <tr
                         key={c.id}
                         className={i % 2 === 0 ? 'bg-orange-50 dark:bg-orange-950/20' : 'bg-orange-100/70 dark:bg-orange-950/40'}
                       >
+                        <td className={`py-2.5 px-3 text-center font-semibold ${diasRestantes < 0 ? 'text-red-600' : diasRestantes <= 3 ? 'text-orange-600' : 'text-green-700'}`}>
+                          {diasRestantes < 0 ? 'Vencido' : diasRestantes === 0 ? 'Hoje' : `${diasRestantes} dia${diasRestantes !== 1 ? 's' : ''}`}
+                        </td>
                         <td className="py-2.5 px-3">{c.tribunal || '—'}</td>
                         <td className="py-2.5 px-3">{c.sistema || '—'}</td>
                         <td className="py-2.5 px-3">{format(dataPublicacao, 'dd/MM/yyyy')}</td>
@@ -101,8 +106,8 @@ export default async function HistoricoPage() {
                         <td className="py-2.5 px-3 text-xs">{c.numero_processo || '—'}</td>
                         <td className="py-2.5 px-3">{foro}</td>
                         <td className="py-2.5 px-3">{c.providencia || '—'}</td>
-                        <td className={`py-2.5 px-3 text-center font-semibold ${diasRestantes < 0 ? 'text-red-600' : diasRestantes <= 3 ? 'text-orange-600' : 'text-green-700'}`}>
-                          {diasRestantes < 0 ? 'Vencido' : diasRestantes === 0 ? 'Hoje' : `${diasRestantes} dia${diasRestantes !== 1 ? 's' : ''}`}
+                        <td className="py-2.5 px-3 text-center">
+                          <BotaoExcluir calculoId={c.id} />
                         </td>
                       </tr>
                     )
