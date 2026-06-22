@@ -1,12 +1,20 @@
-import { addDays, format, isWeekend, parseISO } from 'date-fns'
+import { addDays, format, getDay, isWeekend, parseISO } from 'date-fns'
 import type { Feriado } from '@/lib/types'
 
 export type { Feriado }
+
+export interface DiaDetalhe {
+  data: string
+  tipo: 'util' | 'sabado' | 'domingo' | 'feriado'
+  nomeFeriado?: string
+  contagemUtil?: number
+}
 
 export interface ResultadoCalculo {
   dataFim: Date
   feriadosEncontrados: Feriado[]
   diasCorridos: number
+  detalheDias: DiaDetalhe[]
 }
 
 /**
@@ -54,26 +62,45 @@ export function calcularPrazo(
   diasUteis: number,
   feriados: Feriado[]
 ): ResultadoCalculo {
-  const feriadosSet = new Set(feriados.map((f) => f.data))
+  const feriadosMap = new Map<string, Feriado>()
+  for (const f of feriados) {
+    if (!feriadosMap.has(f.data)) feriadosMap.set(f.data, f)
+  }
   const feriadosEncontrados: Feriado[] = []
+  const detalheDias: DiaDetalhe[] = []
 
   let diasContados = 0
   let dataAtual = addDays(dataInicio, 1)
 
   while (diasContados < diasUteis) {
     const dataStr = format(dataAtual, 'yyyy-MM-dd')
-    const ehFeriado = feriadosSet.has(dataStr)
+    const feriado = feriadosMap.get(dataStr)
+    const dow = getDay(dataAtual)
 
-    if (ehFeriado) {
-      const f = feriados.find((f) => f.data === dataStr)
-      if (f && !feriadosEncontrados.find((x) => x.id === f.id)) {
-        feriadosEncontrados.push(f)
+    let tipo: DiaDetalhe['tipo']
+    if (feriado) {
+      tipo = 'feriado'
+      if (!feriadosEncontrados.find((x) => x.id === feriado.id)) {
+        feriadosEncontrados.push(feriado)
       }
+    } else if (dow === 0) {
+      tipo = 'domingo'
+    } else if (dow === 6) {
+      tipo = 'sabado'
+    } else {
+      tipo = 'util'
     }
 
-    if (!isWeekend(dataAtual) && !ehFeriado) {
+    if (tipo === 'util') {
       diasContados++
     }
+
+    detalheDias.push({
+      data: dataStr,
+      tipo,
+      nomeFeriado: feriado?.nome,
+      contagemUtil: tipo === 'util' ? diasContados : undefined,
+    })
 
     if (diasContados < diasUteis) {
       dataAtual = addDays(dataAtual, 1)
@@ -84,15 +111,46 @@ export function calcularPrazo(
     (dataAtual.getTime() - dataInicio.getTime()) / (1000 * 60 * 60 * 24)
   )
 
-  return { dataFim: dataAtual, feriadosEncontrados, diasCorridos }
+  return { dataFim: dataAtual, feriadosEncontrados, diasCorridos, detalheDias }
 }
 
 export function calcularPrazoCorridos(
   dataInicio: Date,
-  diasCorridos: number
+  diasCorridos: number,
+  feriados: Feriado[] = []
 ): ResultadoCalculo {
+  const feriadosMap = new Map<string, Feriado>()
+  for (const f of feriados) {
+    if (!feriadosMap.has(f.data)) feriadosMap.set(f.data, f)
+  }
   const dataFim = addDays(dataInicio, diasCorridos)
-  return { dataFim, feriadosEncontrados: [], diasCorridos }
+  const detalheDias: DiaDetalhe[] = []
+
+  for (let i = 1; i <= diasCorridos; i++) {
+    const d = addDays(dataInicio, i)
+    const dataStr = format(d, 'yyyy-MM-dd')
+    const feriado = feriadosMap.get(dataStr)
+    const dow = getDay(d)
+
+    let tipo: DiaDetalhe['tipo']
+    if (feriado) {
+      tipo = 'feriado'
+    } else if (dow === 0) {
+      tipo = 'domingo'
+    } else if (dow === 6) {
+      tipo = 'sabado'
+    } else {
+      tipo = 'util'
+    }
+
+    detalheDias.push({
+      data: dataStr,
+      tipo,
+      nomeFeriado: feriado?.nome,
+    })
+  }
+
+  return { dataFim, feriadosEncontrados: [], diasCorridos, detalheDias }
 }
 
 export function feriadosParaAno(feriados: Feriado[], ano: number): Feriado[] {

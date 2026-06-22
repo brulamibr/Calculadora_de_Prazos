@@ -3,9 +3,10 @@
 import { useState, useEffect } from 'react'
 import { format } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { CalendarIcon, Calculator, AlertCircle } from 'lucide-react'
+import { CalendarIcon, Calculator, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { calcularPrazo, calcularPrazoCorridos, gerarRecessoForense } from '@/lib/calculadora'
+import type { DiaDetalhe } from '@/lib/calculadora'
 import { TRIBUNAIS, GRUPOS_TRIBUNAL, SISTEMAS } from '@/lib/tribunais'
 import type { Estado, Feriado } from '@/lib/types'
 import type { Tribunal } from '@/lib/tribunais'
@@ -83,9 +84,11 @@ export function FormCalculo() {
     dataFim: Date
     feriadosEncontrados: Feriado[]
     diasCorridos: number
+    detalheDias: DiaDetalhe[]
     tipoPrazo: TipoPrazo
     numeroDias: number
   } | null>(null)
+  const [mostrarDetalhe, setMostrarDetalhe] = useState(false)
 
   useEffect(() => {
     async function carregarEstados() {
@@ -118,10 +121,16 @@ export function FormCalculo() {
     setLoading(true)
     try {
       const supabase = createClient()
-      let res: { dataFim: Date; feriadosEncontrados: Feriado[]; diasCorridos: number }
+      let res: { dataFim: Date; feriadosEncontrados: Feriado[]; diasCorridos: number; detalheDias: DiaDetalhe[] }
+      let municipioId: number | null = null
 
       if (tipoPrazo === 'corridos') {
-        res = calcularPrazoCorridos(dataInicio, dias)
+        const anoInicio = dataInicio.getFullYear()
+        const anoFimEstimado = new Date(dataInicio.getTime() + dias * 86400000).getFullYear()
+        const anosCorridos = Array.from(new Set([anoInicio, anoFimEstimado]))
+        const feriadosCorridos = await buscarFeriadosNacionais(anosCorridos)
+        const recessoCorridos = gerarRecessoForense(anosCorridos)
+        res = calcularPrazoCorridos(dataInicio, dias, [...feriadosCorridos, ...recessoCorridos])
       } else {
         const anoInicio = dataInicio.getFullYear()
         const anoFimEstimado = new Date(dataInicio.getTime() + dias * 2 * 86400000).getFullYear()
@@ -155,6 +164,7 @@ export function FormCalculo() {
             .eq('estado_sigla', estadoSigla)
             .maybeSingle()
           if (mData?.id) {
+            municipioId = mData.id
             const { data } = await supabase
               .from('feriados')
               .select('*')
@@ -186,7 +196,7 @@ export function FormCalculo() {
           numero_processo: numeroProcesso || null,
           providencia: providencia || null,
           estado_sigla: estadoSigla || null,
-          municipio_id: null,
+          municipio_id: municipioId,
           data_inicio: format(dataInicio, 'yyyy-MM-dd'),
           dias_uteis: dias,
           data_fim: format(res.dataFim, 'yyyy-MM-dd'),
@@ -526,6 +536,92 @@ export function FormCalculo() {
                       )
                     })}
                   </div>
+                </div>
+              </>
+            )}
+
+            {resultado.detalheDias.length > 0 && (
+              <>
+                <Separator />
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setMostrarDetalhe((v) => !v)}
+                    className="flex items-center gap-1 text-sm font-medium text-blue-800 mb-2 hover:text-blue-600 transition-colors w-full"
+                  >
+                    {mostrarDetalhe ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    Contagem dia a dia ({resultado.detalheDias.length} dias)
+                  </button>
+                  {mostrarDetalhe && (
+                    <div className="rounded-lg border border-blue-200 dark:border-blue-900 overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-blue-100/60 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300">
+                            <th className="text-left px-3 py-2 font-medium">Data</th>
+                            <th className="text-left px-3 py-2 font-medium">Dia</th>
+                            <th className="text-left px-3 py-2 font-medium">Tipo</th>
+                            {resultado.tipoPrazo === 'uteis' && (
+                              <th className="text-right px-3 py-2 font-medium">#</th>
+                            )}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {resultado.detalheDias.map((d) => {
+                            const date = new Date(d.data + 'T00:00:00')
+                            const rowColor =
+                              d.tipo === 'util'
+                                ? ''
+                                : d.tipo === 'feriado'
+                                ? 'bg-amber-50 dark:bg-amber-950/20'
+                                : 'bg-slate-50 dark:bg-slate-900/30'
+                            const textColor =
+                              d.tipo === 'util'
+                                ? 'text-foreground'
+                                : d.tipo === 'feriado'
+                                ? 'text-amber-700 dark:text-amber-400'
+                                : 'text-muted-foreground'
+                            return (
+                              <tr key={d.data} className={cn('border-t border-blue-100 dark:border-blue-900/50', rowColor)}>
+                                <td className={cn('px-3 py-1.5 tabular-nums', textColor)}>
+                                  {format(date, 'dd/MM/yyyy')}
+                                </td>
+                                <td className={cn('px-3 py-1.5 capitalize', textColor)}>
+                                  {format(date, 'EEE', { locale: ptBR })}
+                                </td>
+                                <td className="px-3 py-1.5">
+                                  {d.tipo === 'util' && (
+                                    <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 dark:bg-green-950/40 dark:text-green-400">
+                                      Útil
+                                    </Badge>
+                                  )}
+                                  {d.tipo === 'sabado' && (
+                                    <Badge variant="secondary" className="text-xs bg-slate-100 text-slate-500">
+                                      Sábado
+                                    </Badge>
+                                  )}
+                                  {d.tipo === 'domingo' && (
+                                    <Badge variant="secondary" className="text-xs bg-slate-200 text-slate-600">
+                                      Domingo
+                                    </Badge>
+                                  )}
+                                  {d.tipo === 'feriado' && (
+                                    <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-700">
+                                      {d.nomeFeriado || 'Feriado'}
+                                    </Badge>
+                                  )}
+                                </td>
+                                {resultado.tipoPrazo === 'uteis' && (
+                                  <td className="px-3 py-1.5 text-right tabular-nums font-medium text-blue-700 dark:text-blue-400">
+                                    {d.contagemUtil ?? ''}
+                                  </td>
+                                )}
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </div>
               </>
             )}

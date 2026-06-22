@@ -30,11 +30,14 @@ export function BotaoExportar({ calculos }: Props) {
       const dataPublicacao = new Date(c.data_inicio + 'T00:00:00')
       const dataInicio = proximoDiaUtil(dataPublicacao)
       const dataFim = new Date(c.data_fim + 'T00:00:00')
-      const foro = c.estado_sigla || ''
+      const foro = c.municipio?.nome
+        ? `${c.municipio.nome}${c.estado?.sigla ? `/${c.estado.sigla}` : ''}`
+        : ''
       const hoje = new Date()
       hoje.setHours(0, 0, 0, 0)
       const diasRestantes = differenceInCalendarDays(dataFim, hoje)
       return {
+        diasRestantes: diasRestantes < 0 ? 'Vencido' : diasRestantes === 0 ? 'Hoje' : `${diasRestantes}`,
         tribunal: c.tribunal || '',
         sistema: c.sistema || '',
         dataPublicacao: format(dataPublicacao, 'dd/MM/yyyy'),
@@ -46,7 +49,6 @@ export function BotaoExportar({ calculos }: Props) {
         processo: c.numero_processo || '',
         foro,
         providencia: c.providencia || '',
-        diasRestantes: diasRestantes < 0 ? 'Vencido' : diasRestantes === 0 ? 'Hoje' : `${diasRestantes}`,
       }
     })
   }
@@ -55,6 +57,7 @@ export function BotaoExportar({ calculos }: Props) {
     setLoading(true)
     const XLSX = await import('xlsx')
     const rows = montarLinhas().map((r) => ({
+      'Dias Restantes': r.diasRestantes,
       'Tribunal': r.tribunal,
       'Sistema': r.sistema,
       'Data da Publicação': r.dataPublicacao,
@@ -66,7 +69,6 @@ export function BotaoExportar({ calculos }: Props) {
       'Processo': r.processo,
       'Foro': r.foro,
       'Providência': r.providencia,
-      'Dias Restantes': r.diasRestantes,
     }))
     const ws = XLSX.utils.json_to_sheet(rows)
     const wb = XLSX.utils.book_new()
@@ -90,8 +92,9 @@ export function BotaoExportar({ calculos }: Props) {
 
     autoTable(doc, {
       startY: 35,
-      head: [['Tribunal', 'Sistema', 'Data Publicação', 'Início', 'Dias', 'Fim', 'Dia Sem.', 'Cliente', 'Processo', 'Foro', 'Providência', 'Dias Restantes']],
+      head: [['Dias Restantes', 'Tribunal', 'Sistema', 'Data Publicação', 'Início', 'Dias', 'Fim', 'Dia Sem.', 'Cliente', 'Processo', 'Foro', 'Providência']],
       body: linhas.map((r) => [
+        r.diasRestantes,
         r.tribunal,
         r.sistema,
         r.dataPublicacao,
@@ -103,7 +106,6 @@ export function BotaoExportar({ calculos }: Props) {
         r.processo,
         r.foro,
         r.providencia,
-        r.diasRestantes,
       ]),
       styles: { fontSize: 7 },
       headStyles: { fillColor: [30, 64, 175] },
