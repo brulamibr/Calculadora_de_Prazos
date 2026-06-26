@@ -20,6 +20,7 @@ type SortKey =
   | 'inicio'
   | 'diasPrazo'
   | 'fim'
+  | 'diaSemana'
   | 'cliente'
   | 'processo'
   | 'foro'
@@ -55,9 +56,11 @@ function buildRow(c: CalculoComJoin): RowData {
   const fim = new Date(c.data_fim + 'T00:00:00')
   const hoje = new Date()
   hoje.setHours(0, 0, 0, 0)
-  const foro = c.municipio?.nome
-    ? `${c.municipio.nome}${c.estado?.sigla ? `/${c.estado.sigla}` : ''}`
-    : ''
+  const municipioNome = c.municipio?.nome ?? ''
+  const sigla = c.estado?.sigla ?? c.estado_sigla ?? ''
+  const foro = municipioNome
+    ? `${municipioNome}${sigla ? `/${sigla}` : ''}`
+    : sigla || ''
   return {
     original: c,
     diasRestantes: differenceInCalendarDays(fim, hoje),
@@ -83,6 +86,7 @@ const columns: { key: SortKey; label: string; align?: 'center' }[] = [
   { key: 'inicio', label: 'Início' },
   { key: 'diasPrazo', label: 'Dias do Prazo', align: 'center' },
   { key: 'fim', label: 'Fim' },
+  { key: 'diaSemana', label: 'Dia da Semana', align: 'center' },
   { key: 'cliente', label: 'Cliente' },
   { key: 'processo', label: 'Processo' },
   { key: 'foro', label: 'Foro' },
@@ -216,7 +220,6 @@ export function TabelaHistorico({ calculos }: Props) {
                   </span>
                 </th>
               ))}
-              <th className="py-3 px-3 font-semibold text-center text-xs uppercase tracking-wide">Dia da Semana</th>
               <th className="py-3 px-3 font-semibold text-center text-xs uppercase tracking-wide">Ações</th>
             </tr>
           </thead>
@@ -235,11 +238,11 @@ export function TabelaHistorico({ calculos }: Props) {
                 <td className="py-2.5 px-3">{format(r.inicio, 'dd/MM/yyyy')}</td>
                 <td className="py-2.5 px-3 text-center">{r.diasPrazo}</td>
                 <td className="py-2.5 px-3 font-semibold">{format(r.fim, 'dd/MM/yyyy')}</td>
+                <td className="py-2.5 px-3 capitalize text-center">{r.diaSemana}</td>
                 <td className="py-2.5 px-3">{r.cliente || '—'}</td>
                 <td className="py-2.5 px-3 text-xs">{r.processo || '—'}</td>
                 <td className="py-2.5 px-3">{r.foro || '—'}</td>
                 <td className="py-2.5 px-3">{r.providencia || '—'}</td>
-                <td className="py-2.5 px-3 capitalize text-center">{r.diaSemana}</td>
                 <td className="py-2.5 px-3 text-center">
                   <BotaoExcluir calculoId={r.original.id} />
                 </td>
