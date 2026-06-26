@@ -36,7 +36,7 @@ export default async function HistoricoPage() {
           <p className="text-slate-500 mt-1">Todos os cálculos realizados na sua conta</p>
         </div>
         {calculos && calculos.length > 0 && (
-          <BotaoExportar calculos={calculos as Calculo[]} />
+          <BotaoExportar calculos={calculos as any} />
         )}
       </div>
 

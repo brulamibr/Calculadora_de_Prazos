@@ -12,8 +12,13 @@ import {
 } from '@/components/ui/dropdown-menu'
 import type { Calculo } from '@/lib/types'
 
+type CalculoComJoin = Calculo & {
+  municipio: { nome: string } | null
+  estado: { nome: string; sigla: string } | null
+}
+
 interface Props {
-  calculos: Calculo[]
+  calculos: CalculoComJoin[]
 }
 
 function proximoDiaUtil(data: Date): Date {

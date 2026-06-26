@@ -157,12 +157,25 @@ export function FormCalculo() {
 
         let feriadosMunicipais: Feriado[] = []
         if (municipioNome) {
-          const { data: mData } = await supabase
+          let { data: mData } = await supabase
             .from('municipios')
             .select('id')
             .eq('nome', municipioNome)
             .eq('estado_sigla', estadoSigla)
             .maybeSingle()
+          if (!mData) {
+            const ibgeMunicipio = municipios.find((m) => m.nome === municipioNome)
+            const { data: inserted } = await supabase
+              .from('municipios')
+              .insert({
+                nome: municipioNome,
+                estado_sigla: estadoSigla,
+                codigo_ibge: ibgeMunicipio ? String(ibgeMunicipio.id) : null,
+              })
+              .select('id')
+              .single()
+            mData = inserted
+          }
           if (mData?.id) {
             municipioId = mData.id
             const { data } = await supabase
